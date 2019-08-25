@@ -30,6 +30,8 @@ const getCSSModuleLocalIdent = require('react-dev-utils/getCSSModuleLocalIdent')
 const HTMLTagAttrPlugin = require('html-tag-attributes-plugin');
 const WebpackDeepScopeAnalysisPlugin = require('webpack-deep-scope-plugin')
   .default;
+const WebpackBundleAnalyzer = require('webpack-bundle-analyzer')
+  .BundleAnalyzerPlugin;
 const PreloadWebpackPlugin = require('@lowb/preload-webpack-plugin');
 const paths = require('./paths');
 const modules = require('./modules');
@@ -253,6 +255,9 @@ module.exports = function(webpackEnv) {
           : undefined,
     },
     optimization: {
+      providedExports: true,
+      usedExports: true,
+      concatenateModules: true,
       minimize: isEnvProduction,
       minimizer: [
         // This is only used in production mode
@@ -321,12 +326,33 @@ module.exports = function(webpackEnv) {
       // https://twitter.com/wSokra/status/969633336732905474
       // https://medium.com/webpack/webpack-4-code-splitting-chunk-graph-and-the-splitchunks-optimization-be739a861366
       splitChunks: {
-        chunks: 'all',
-        name: false,
+        cacheGroups: {
+          vendors: {
+            name: 'chunk-vendors',
+            test: /[\\\/]node_modules[\\\/]/,
+            priority: -10,
+            chunks: 'initial',
+          },
+          common: {
+            name: 'chunk-common',
+            minChunks: 2,
+            priority: -20,
+            chunks: 'initial',
+            reuseExistingChunk: true,
+          },
+          asyncmodule: {
+            name: 'chunk-async',
+            minChunks: 2,
+            minSize: 10000,
+            priority: -30,
+            chunks: 'async',
+            reuseExistingChunk: true,
+          },
+        },
       },
       // Keep the runtime chunk separated to enable long term caching
       // https://twitter.com/wSokra/status/969679223278505985
-      runtimeChunk: true,
+      runtimeChunk: 'single',
     },
     resolve: {
       mainFields: ['module', 'jsnext:main', 'browser', 'main'],
@@ -406,6 +432,7 @@ module.exports = function(webpackEnv) {
                 limit: imageInlineSizeLimit,
                 name: 'static/images/[name].[hash:8].[ext]',
               },
+              include: paths.appSrc,
             },
             {
               test: /\.svg$/,
@@ -415,6 +442,7 @@ module.exports = function(webpackEnv) {
                 stripdeclarations: true,
                 name: 'static/images/[name].[hash:8].[ext]',
               },
+              include: paths.appSrc,
             },
             {
               test: /\.(mp4|webm|ogg|mp3|wav|flac|aac)(\?.*)?$/,
@@ -423,6 +451,7 @@ module.exports = function(webpackEnv) {
                 limit: audioInlineSizeLimit,
                 name: 'static/audios/[name].[hash:8].[ext]',
               },
+              include: paths.appSrc,
             },
             {
               test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/i,
@@ -431,6 +460,7 @@ module.exports = function(webpackEnv) {
                 limit: fontInlineSizeLimit,
                 name: 'static/fonts/[name].[hash:8].[ext]',
               },
+              include: paths.appSrc,
             },
             // Process application JS with Babel.
             // The preset includes JSX, Flow, TypeScript, and some ESnext features.
@@ -619,6 +649,7 @@ module.exports = function(webpackEnv) {
           {
             inject: true,
             template: paths.appHtml,
+            templateParameters: overrides.htmlData,
           },
           isEnvProduction
             ? {
@@ -641,6 +672,8 @@ module.exports = function(webpackEnv) {
       new PreloadWebpackPlugin({
         rel: 'preload',
         include: 'initial',
+        // runtime被内联到html, preload中去掉它
+        fileBlacklist: [/runtime.+[.]js/],
         as(entry) {
           if (/\.css$/.test(entry)) {
             return 'style';
@@ -678,7 +711,7 @@ module.exports = function(webpackEnv) {
       // a network request.
       isEnvProduction &&
         shouldInlineRuntimeChunk &&
-        new InlineChunkHtmlPlugin(HtmlWebpackPlugin, [/runtime~.+[.]js/]),
+        new InlineChunkHtmlPlugin(HtmlWebpackPlugin, [/runtime.+[.]js/]),
       // Makes some environment variables available in index.html.
       // The public URL is available as %PUBLIC_URL% in index.html, e.g.:
       // <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico">
@@ -713,6 +746,11 @@ module.exports = function(webpackEnv) {
           // both options are optional
           filename: 'static/css/[name].[contenthash:8].css',
           chunkFilename: 'static/css/[name].[contenthash:8].chunk.css',
+        }),
+      isEnvProduction &&
+        new WebpackBundleAnalyzer({
+          analyzerMode: 'static',
+          defaultSizes: 'parsed',
         }),
       // Generate a manifest file which contains a mapping of all asset filenames
       // to their corresponding output file so that tools can pick it up without

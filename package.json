@@ -88,6 +88,7 @@
     "ts-pnp": "1.1.2",
     "url-loader": "2.1.0",
 		"webpack": "4.39.1",
+    "webpack-bundle-analyzer": "^3.4.1",
     "webpack-deep-scope-plugin": "^1.6.2",
     "webpack-dev-server": "3.2.1",
     "webpack-manifest-plugin": "2.0.4",
