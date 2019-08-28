@@ -673,7 +673,7 @@ module.exports = function(webpackEnv) {
         rel: 'preload',
         include: 'initial',
         // runtime被内联到html, preload中去掉它
-        fileBlacklist: [/runtime.+[.]js/],
+        fileBlacklist: [/runtime.+[.]js/, /\.map$/],
         as(entry) {
           if (/\.css$/.test(entry)) {
             return 'style';
@@ -747,11 +747,12 @@ module.exports = function(webpackEnv) {
           filename: 'static/css/[name].[contenthash:8].css',
           chunkFilename: 'static/css/[name].[contenthash:8].chunk.css',
         }),
-      isEnvProduction && overrides.enableBundleAnalyzer &&
+      isEnvProduction &&
+        overrides.enableBundleAnalyzer &&
         new WebpackBundleAnalyzer({
           analyzerMode: 'static',
           defaultSizes: 'parsed',
-          openAnalyzer: false
+          openAnalyzer: false,
         }),
       // Generate a manifest file which contains a mapping of all asset filenames
       // to their corresponding output file so that tools can pick it up without
