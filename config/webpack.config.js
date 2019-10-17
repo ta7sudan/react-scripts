@@ -79,6 +79,11 @@ module.exports = function(webpackEnv) {
   const isEnvDevelopment = webpackEnv === 'development';
   const isEnvProduction = webpackEnv === 'production';
 
+  // Variable used for enabling profiling in Production
+  // passed into alias object. Uses a flag if passed into the build command
+  const isEnvProductionProfile =
+    isEnvProduction && process.argv.includes('--profile');
+
   // Webpack uses `publicPath` to determine where the app is being served from.
   // It requires a trailing slash, or the file assets will get an incorrect path.
   // In development, we always serve from the root. This makes config easier.
@@ -253,6 +258,9 @@ module.exports = function(webpackEnv) {
           : overrides.crossorigin
           ? 'anonymous'
           : undefined,
+      // this defaults to 'window', but by setting it to 'this' then
+      // module chunks which are built will work in web workers as well.
+      globalObject: 'this',
     },
     optimization: {
       providedExports: true,
@@ -288,6 +296,9 @@ module.exports = function(webpackEnv) {
             mangle: {
               safari10: true,
             },
+            // Added for profiling in devtools
+            keep_classnames: isEnvProductionProfile,
+            keep_fnames: isEnvProductionProfile,
             output: {
               ecma: 5,
               comments: false,
@@ -376,6 +387,12 @@ module.exports = function(webpackEnv) {
         // Support React Native Web
         // https://www.smashingmagazine.com/2016/08/a-glimpse-into-the-future-with-react-native-for-web/
         'react-native': 'react-native-web',
+        // Allows for better profiling with ReactDevTools
+        ...(isEnvProductionProfile && {
+          'react-dom$': 'react-dom/profiling',
+          'scheduler/tracing': 'scheduler/tracing-profiling',
+        }),
+        ...(modules.webpackAliases || {}),
       },
       plugins: [
         // Adds support for installing with Plug'n'Play, leading to faster installs and adding
@@ -417,16 +434,18 @@ module.exports = function(webpackEnv) {
                 // @remove-on-eject-begin
                 ignore: process.env.EXTEND_ESLINT === 'true',
                 baseConfig: (() => {
-                  const eslintCli = new eslint.CLIEngine();
-                  let eslintConfig;
-                  try {
-                    eslintConfig = eslintCli.getConfigForFile(paths.appIndexJs);
-                  } catch (e) {
-                    // A config couldn't be found.
-                  }
-
                   // We allow overriding the config only if the env variable is set
-                  if (process.env.EXTEND_ESLINT === 'true' && eslintConfig) {
+                  if (process.env.EXTEND_ESLINT === 'true') {
+                    const eslintCli = new eslint.CLIEngine();
+                    let eslintConfig;
+                    try {
+                      eslintConfig = eslintCli.getConfigForFile(
+                        paths.appIndexJs
+                      );
+                    } catch (e) {
+                      console.error(e);
+                      process.exit(1);
+                    }
                     return eslintConfig;
                   } else {
                     return {
@@ -574,11 +593,11 @@ module.exports = function(webpackEnv) {
                   ]
                 ),
                 // @remove-on-eject-end
-                // If an error happens in a package, it's possible to be
-                // because it was compiled. Thus, we don't want the browser
-                // debugger to show the original code. Instead, the code
-                // being evaluated would be much more helpful.
-                sourceMaps: false,
+                // Babel sourcemaps are needed for debugging into node_modules
+                // code.  Without the options below, debuggers like VSCode
+                // show incorrect code and set breakpoints on the wrong lines.
+                sourceMaps: shouldUseSourceMap,
+                inputSourceMap: shouldUseSourceMap,
               },
             },
             // "postcss" loader applies autoprefixer to our CSS.
